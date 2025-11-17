@@ -1,13 +1,18 @@
-import express, { Request, Response } from "express";
-import dotenv from "dotenv";
+import express from 'express';
+import cors from 'cors';
+import morgan from 'morgan';
+import userRoutes from './routes/user.routes';
 
 const app = express();
-dotenv.config();
 
-app.get("/", (_req: Request, res: Response) => {
-    res.send("App funcionando");
-});
+app.use(cors());
+app.use(morgan('dev'));
+app.use(express.json());
 
-app.listen(3000, () => {
-    console.log("App funcionando");
-});
+// Aquí irán tus rutas
+
+app.use("/api/users", userRoutes);
+// app.use('/api/auth', authRoutes);
+// app.use('/api/users', userRoutes);
+
+export default app;
