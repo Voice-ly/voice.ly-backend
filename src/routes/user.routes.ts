@@ -1,6 +1,7 @@
 import { Router } from "express";
-import { createUser,updateUser, deleteUser, getUsers, loginUser } from "../controllers/user.controller";
+import { createUser,updateUser, deleteUser, getUsers, loginUser, logoutUser, forgotPassword } from "../controllers/user.controller";
 import { verifyToken } from "../middlewares/auth.middleware";
+import { verify } from "crypto";
 
 /**
  * User Routes
@@ -17,10 +18,13 @@ const router = Router();
 // Public routes
 router.post("/", createUser);
 router.post("/login", loginUser);
+router.post("/logout", verifyToken, logoutUser);
 
 // Protected routes
 router.get("/", verifyToken, getUsers);
 router.put("/profile", verifyToken, updateUser);
 router.delete("/", verifyToken, deleteUser);
+
+router.post("/forgotPassword", forgotPassword)
 
 export default router;

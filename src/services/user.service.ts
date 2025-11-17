@@ -40,11 +40,11 @@ export async function updateUserService(
   id: string,
   data: Partial<User>
 ): Promise<void> {
-  if (data.password) {
-    data.password = await bcrypt.hash(data.password, 10);
-  }
+    if (data.password) {
+        data.password = await bcrypt.hash(data.password, 10);
+    }
 
-  await userRepo.updateUserInDb(id, data);
+    await userRepo.updateUserInDb(id, data);
 }
 
 /**

@@ -19,21 +19,16 @@ import jwt, { JwtPayload } from "jsonwebtoken";
 
 export const verifyToken = (req: Request, res: Response, next: NextFunction) => {
   try {
-    const authHeader = req.headers.authorization;
+    const token = req.cookies.token;
+    if (!token) return res.status(401).json({ error: "No token provided" });
 
-    if (!authHeader || !authHeader.startsWith("Bearer ")) {
-      return res.status(401).json({ error: "No token provided" });
-    }
-
-    const token = authHeader.split(" ")[1];
     const secret = process.env.JWT_SECRET;
-
     if (!secret) throw new Error("JWT_SECRET no definido");
 
     // Verificar token propio
     const decoded = jwt.verify(token, secret) as { uid: string; email?: string; [key: string]: any };
 
-    req.user = decoded; // ⚡ Esto funciona porque extendimos Request en index.d.ts
+    req.user = decoded; // Esto funciona porque extendimos Request en index.d.ts
 
     next();
   } catch (err) {

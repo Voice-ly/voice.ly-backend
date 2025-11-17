@@ -3,6 +3,8 @@ import bcrypt from "bcrypt";
 import { sign, SignOptions } from "jsonwebtoken";
 import { User } from "../models/user.model";
 import {adminAuth} from "../config/firebaseAdmin";
+import { transporter } from "../config/nodemailer";
+
 import {
   createUserService,
   getUsersService,
@@ -112,17 +114,20 @@ export const getUsers = async (req: Request, res: Response) => {
  */
 export const updateUser = async (req: Request, res: Response) => {
   try {
-    if (!req.user) return res.status(401).json({ message: "Token inválido" });
-
-    const userId = req.user.uid;
+    const userId = req.user!.uid;
     const data = req.body;
 
-    // Si se intenta actualizar la contraseña, la encriptamos
-    if (data.password) {
-      data.password = await bcrypt.hash(data.password, 10);
+    const allowedFields: (keyof User)[] = ["firstName", "lastName", "age", "email", "password"];
+    const updateData: Partial<User> = {};
+
+    // Actualizar cualquier campo permitido
+    for (const field of allowedFields) {
+      if (data[field] !== undefined) updateData[field] = data[field];
     }
 
-    await updateUserService(userId, data);
+    await updateUserService(userId, updateData);
+
+    console.log("Usuario actualizado:", userId, updateData);
 
     res.json({ message: "Usuario actualizado" });
   } catch (error: any) {
@@ -178,21 +183,81 @@ export const loginUser = async (req: Request, res: Response) => {
     const match = await bcrypt.compare(password, user.password);
     if (!match) return res.status(401).json({ message: "Contraseña incorrecta" });
 
-    const secret = process.env.JWT_SECRET;
-    if (!secret) throw new Error("JWT_SECRET no definido");
+    const secret = process.env.JWT_SECRET!;
+    const expiresIn: number = 1000 * 60 * 60;
 
-    const expiresIn: any = process.env.JWT_EXPIRES_IN || "1h";
-    const options: SignOptions = { expiresIn };
-
+    // Crear token
     const token = sign(
         { uid: user.id, email: user.email },
         secret,
-        options
+        { expiresIn: "1h" }
     );
+
+    // Guardamos el token en cookie HTTP-only
+    res.cookie("token", token, {
+      httpOnly: true, // No accesible desde JS
+      secure: process.env.NODE_ENV === "production", // Usa 'secure' solo en producción
+      sameSite: process.env.NODE_ENV === "production" ? "none" : "lax", // Ajusta según tus necesidades "lax"
+      maxAge: expiresIn, // 1 hora
+    });
     
 
-    res.json({ token });
+    res.json({ message: "Login exitoso" });
   } catch (error: any) {
     res.status(500).json({ error: error.message });
+  }
+};
+
+/**
+ * 
+ */
+export const logoutUser = (req: Request, res: Response) => {
+  try {
+    res.clearCookie("token", {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
+    });
+
+    res.json({ message: "Usuario deslogueado correctamente" });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+export const forgotPassword = async (req: Request, res: Response) => {
+  try {
+    const { email } = req.body;
+
+    if (!email) {
+      return res.status(400).json({ message: "Email is required" });
+    }
+
+    const user = await findUserByEmailService(email) as UserWithId | null;
+    if (!user) return res.status(404).json({ message: "Usuario no encontrado" });
+
+    // Firebase genera el link
+    const resetLink = await adminAuth.generatePasswordResetLink(email);
+
+    // Enviar correo usando Nodemailer
+    await transporter.sendMail({
+      from: '"Soporte App" <no-reply@tuapp.com>',
+      to: email,
+      subject: "Recuperación de contraseña",
+      html: `
+        <h2>Recupera tu contraseña</h2>
+        <p>Haz clic en el siguiente enlace para restablecer tu contraseña:</p>
+        <a href="${resetLink}" target="_blank">Restablecer contraseña</a>
+        <p>Si no solicitaste este cambio, puedes ignorar este mensaje.</p>
+      `,
+    });
+
+    return res.json({
+      message: "Password reset link sent to email",
+    });
+
+  } catch (error: any) {
+    console.error("Error sending reset email:", error);
+    return res.status(500).json({ error: error.message });
   }
 };
