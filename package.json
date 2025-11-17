@@ -23,5 +23,11 @@
         "npm": "^11.6.2",
         "ts-node": "^10.9.2",
         "typescript": "^5.9.3"
+    },
+    "dependencies": {
+        "express-validator": "^7.3.0",
+        "firebase": "^12.6.0",
+        "mongodb": "^7.0.0",
+        "mongoose": "^8.19.4"
     }
 }
