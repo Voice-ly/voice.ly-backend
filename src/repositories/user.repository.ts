@@ -69,3 +69,11 @@ export async function findUserByEmailInDb(
   return { id: query.docs[0].id, ...query.docs[0].data() };
 }
 
+
+export async function findUserByResetToken(token: string) {
+  const query = await usersCollection.where("resetPasswordToken", "==", token).get();
+
+  if (query.empty) return null;
+
+  return { id: query.docs[0].id, ...query.docs[0].data() };
+}

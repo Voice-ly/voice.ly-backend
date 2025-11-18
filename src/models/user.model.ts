@@ -5,4 +5,5 @@ export interface User {
   email: string;
   createdAt: Date;
   password: string;
+  resetPasswordToken?: string;
 }

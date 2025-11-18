@@ -68,3 +68,10 @@ export async function findUserByEmailService(
 ): Promise<object | null> {
   return await userRepo.findUserByEmailInDb(email);
 }
+
+
+export async function findUserByTokenService(
+  token: string
+): Promise<object | null> {
+  return await userRepo.findUserByResetToken(token);
+}

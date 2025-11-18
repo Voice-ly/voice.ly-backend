@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { createUser,updateUser, deleteUser, getUsers, loginUser, logoutUser, forgotPassword } from "../controllers/user.controller";
+import { createUser,updateUser, deleteUser, getUsers, loginUser, logoutUser, forgotPassword, resetPassword } from "../controllers/user.controller";
 import { verifyToken } from "../middlewares/auth.middleware";
 import { verify } from "crypto";
 
@@ -26,5 +26,6 @@ router.put("/profile", verifyToken, updateUser);
 router.delete("/", verifyToken, deleteUser);
 
 router.post("/forgotPassword", forgotPassword)
+router.post("/reset-password", resetPassword);
 
 export default router;
