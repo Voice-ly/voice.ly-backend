@@ -1,6 +1,6 @@
 import { transporter } from "../config/nodemailer";
 
-export async function sendPasswordResetEmail(to: string, resetURL: string) {
+export async function sendPasswordResetEmail(to: string, resetURL: string): Promise<void> {
   const htmlContent = `
   <div style="font-family: Arial, sans-serif; background: #f5f6fa; padding: 30px;">
     <div style="max-width: 520px; margin: 0 auto; background: #ffffff; padding: 25px; border-radius: 10px; box-shadow: 0 2px 6px rgba(0,0,0,0.1);">
@@ -55,11 +55,12 @@ export async function sendPasswordResetEmail(to: string, resetURL: string) {
   </div>
   `;
 
-  return await transporter.sendMail({
+  await transporter.sendMail({
     from: '"Soporte App" <no-reply@tuapp.com>',
     to,
     subject: "Recuperación de contraseña",
     html: htmlContent,
   });
+  return;
 }
 

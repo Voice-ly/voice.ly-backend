@@ -19,12 +19,14 @@ export async function createUserService(data: User): Promise<string> {
 }
 
 /**
- * Retrieves all users from the database.
+ * Encuentra un usuario por su ID (UID).
+ * Este método se usará para que un usuario solo pueda ver su propio perfil.
  *
- * @returns {Promise<Array<object>>} An array of user objects.
+ * @param {string} id - ID del usuario (UID)
+ * @returns {Promise<User | null>} El usuario encontrado o null si no existe
  */
-export async function getUsersService(): Promise<Array<object>> {
-  return await userRepo.getAllUsersFromDb();
+export async function findUserByIdService(id: string): Promise<User | null> {
+  return await userRepo.findUserByIdInDb(id);
 }
 
 /**
@@ -65,13 +67,13 @@ export async function deleteUserService(id: string): Promise<void> {
  */
 export async function findUserByEmailService(
   email: string
-): Promise<object | null> {
+): Promise<User | null> {
   return await userRepo.findUserByEmailInDb(email);
 }
 
 
 export async function findUserByTokenService(
   token: string
-): Promise<object | null> {
+): Promise<User | null> {
   return await userRepo.findUserByResetToken(token);
 }

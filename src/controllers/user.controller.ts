@@ -1,18 +1,16 @@
 import { Request, Response } from "express";
 import bcrypt from "bcrypt";
-import { sign, SignOptions } from "jsonwebtoken";
+import * as jwt from "jsonwebtoken";
 import { User } from "../models/user.model";
-import {adminAuth} from "../config/firebaseAdmin";
-import { transporter } from "../config/nodemailer";
 import crypto from "crypto";
 
 import {
   createUserService,
-  getUsersService,
   updateUserService,
   deleteUserService,
   findUserByEmailService,
   findUserByTokenService,
+  findUserByIdService,
 } from "../services/user.service";
 import { sendPasswordResetEmail } from "../utils/email";
 
@@ -93,10 +91,16 @@ export const createUser = async (req: Request, res: Response) => {
  */
 export const getUsers = async (req: Request, res: Response) => {
   try {
-    const users = await getUsersService();
-    res.json(users);
+    if (!req.user) return res.status(401).json({ message: "Token inválido" });
+
+    const userId = req.user.uid;
+    const user = await findUserByIdService(userId); // Servicio que devuelve un usuario por ID
+
+    if (!user) return res.status(404).json({ message: "Usuario no encontrado" });
+
+    return res.json(user);
   } catch (error: any) {
-    res.status(500).json({ error: error.message });
+    return res.status(500).json({ error: error.message });
   }
 };
 
@@ -117,7 +121,9 @@ export const getUsers = async (req: Request, res: Response) => {
  */
 export const updateUser = async (req: Request, res: Response) => {
   try {
-    const userId = req.user!.uid;
+    if (!req.user) return res.status(401).json({ message: "Token inválido" });
+
+    const userId = req.user.uid;
     const data = req.body;
 
     const allowedFields: (keyof User)[] = ["firstName", "lastName", "age", "email", "password"];
@@ -130,11 +136,9 @@ export const updateUser = async (req: Request, res: Response) => {
 
     await updateUserService(userId, updateData);
 
-    console.log("Usuario actualizado:", userId, updateData);
-
-    res.json({ message: "Usuario actualizado" });
+    return res.json({ message: "Usuario actualizado" });
   } catch (error: any) {
-    res.status(500).json({ error: error.message });
+    return res.status(500).json({ error: error.message });
   }
 };
 
@@ -158,9 +162,9 @@ export const deleteUser = async (req: Request, res: Response) => {
     const userId = req.user.uid; // Usamos el UID del token
     await deleteUserService(userId);
 
-    res.json({ message: "Usuario eliminado correctamente" });
+    return res.json({ message: "Usuario eliminado correctamente" });
   } catch (error: any) {
-    res.status(500).json({ error: error.message });
+    return res.status(500).json({ error: error.message });
   }
 };
 
@@ -180,34 +184,46 @@ export const loginUser = async (req: Request, res: Response) => {
     const { email, password } = req.body;
     if (!email || !password) return res.status(400).json({ message: "Email y contraseña requeridos" });
 
-    const user = await findUserByEmailService(email) as UserWithId | null;
+    const user = (await findUserByEmailService(email)) as UserWithId | null;
     if (!user) return res.status(401).json({ message: "Usuario no encontrado" });
 
+    if (!user.password) return res.status(401).json({ message: "Credenciales inválidas" });
     const match = await bcrypt.compare(password, user.password);
     if (!match) return res.status(401).json({ message: "Contraseña incorrecta" });
 
-    const secret = process.env.JWT_SECRET!;
-    const expiresIn: number = 1000 * 60 * 60;
+    const secret = process.env.JWT_SECRET;
+    if (!secret) return res.status(500).json({ message: "JWT_SECRET no está configurado" });
 
-    // Crear token
-    const token = sign(
-        { uid: user.id, email: user.email },
-        secret,
-        { expiresIn: "1h" }
-    );
+    // Determinar expiresIn para jwt y maxAge para cookie (ms)
+    const expiresEnv = process.env.JWT_EXPIRES_IN || "1h"; // puede ser '3600' (segundos), '1h', '30m', etc.
+    let cookieMaxAge = 60 * 60 * 1000; // default 1h en ms
+
+    if (/^\d+$/.test(expiresEnv)) {
+      // valor en segundos
+      cookieMaxAge = Number(expiresEnv) * 1000;
+    } else if (/^\d+h$/i.test(expiresEnv)) {
+      cookieMaxAge = Number(expiresEnv.replace(/h/i, "")) * 60 * 60 * 1000;
+    } else if (/^\d+m$/i.test(expiresEnv)) {
+      cookieMaxAge = Number(expiresEnv.replace(/m/i, "")) * 60 * 1000;
+    }
+
+    // Crear token JWT (jsonwebtoken acepta string|number para expiresIn)
+    const token = (jwt as any).sign({ uid: user.id, email: user.email }, secret as any, {
+      expiresIn: expiresEnv,
+    });
 
     // Guardamos el token en cookie HTTP-only
     res.cookie("token", token, {
-      httpOnly: true, // No accesible desde JS
-      secure: process.env.NODE_ENV === "production", // Usa 'secure' solo en producción
-      sameSite: process.env.NODE_ENV === "production" ? "none" : "lax", // Ajusta según tus necesidades "lax"
-      maxAge: expiresIn, // 1 hora
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
+      maxAge: cookieMaxAge,
     });
     
 
-    res.json({ message: "Login exitoso" });
+    return res.json({ message: "Login exitoso" });
   } catch (error: any) {
-    res.status(500).json({ error: error.message });
+    return res.status(500).json({ error: error.message });
   }
 };
 
@@ -222,9 +238,9 @@ export const logoutUser = (req: Request, res: Response) => {
       sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
     });
 
-    res.json({ message: "Usuario deslogueado correctamente" });
+    return res.json({ message: "Usuario deslogueado correctamente" });
   } catch (error: any) {
-    res.status(500).json({ error: error.message });
+    return res.status(500).json({ error: error.message });
   }
 };
 
@@ -262,7 +278,6 @@ export const forgotPassword = async (req: Request, res: Response) => {
 
     // 3. Generar token único
     const resetToken = crypto.randomBytes(32).toString("hex");
-    console.log(user);
     
     // 4. Guardar token y expiración en la DB
     await updateUserService(user.id, {
@@ -270,6 +285,10 @@ export const forgotPassword = async (req: Request, res: Response) => {
     });
 
     // 5. Crear URL de recuperación
+    if (!process.env.FRONTEND_URL) {
+      return res.status(500).json({ message: "FRONTEND_URL no está configurada" });
+    }
+
     const resetURL = `${process.env.FRONTEND_URL}/reset-password?token=${resetToken}`;
 
     // Enviar correo usando Mailtrap
@@ -304,9 +323,12 @@ export const forgotPassword = async (req: Request, res: Response) => {
  */
 export const resetPassword = async (req: Request, res: Response) =>  {
   try {
-    const { token } = req.query;
+    const tokenRaw = req.query.token;
     const { password } = req.body;
-    const user:any = await findUserByTokenService(token as string);
+    const tokenStr = typeof tokenRaw === "string" ? tokenRaw : Array.isArray(tokenRaw) ? tokenRaw[0] : undefined;
+    if (!tokenStr) return res.status(400).json({ message: "Token requerido" });
+
+    const user = (await findUserByTokenService(tokenStr as string)) as UserWithId | null;
     if (!user) {
       return res.status(400).json({ message: "Token inválido o expirado" });
     }
@@ -326,8 +348,8 @@ export const resetPassword = async (req: Request, res: Response) =>  {
       password,
     });
 
-    res.json({ message: "Contraseña actualizada correctamente" });
+    return res.json({ message: "Contraseña actualizada correctamente" });
   } catch (error) {
-    res.status(500).json({ error: "Error al restablecer la contraseña" });
+    return res.status(500).json({ error: "Error al restablecer la contraseña" });
   }
 }
