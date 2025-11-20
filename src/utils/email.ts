@@ -1,5 +1,18 @@
+/**
+ * Email utilities
+ *
+ * Helper functions for sending transactional emails (password reset, etc.).
+ * These helpers centralize HTML templates and use the configured transporter
+ * from `config/nodemailer.ts`.
+ */
 import { transporter } from "../config/nodemailer";
 
+/**
+ * Send a password reset email to the given address.
+ *
+ * @param to - recipient email address
+ * @param resetURL - full URL the user should visit to reset their password
+ */
 export async function sendPasswordResetEmail(to: string, resetURL: string): Promise<void> {
   const htmlContent = `
   <div style="font-family: Arial, sans-serif; background: #f5f6fa; padding: 30px;">

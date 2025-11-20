@@ -1,3 +1,13 @@
+/**
+ * Application entrypoint that wires Express middlewares and routes.
+ *
+ * This file configures CORS, logging, body parsing and cookie parsing,
+ * mounts the authentication and user routes under `/api/*`, and attaches
+ * the global error handler.
+ *
+ * Only request handling and middleware registration should live here;
+ * business logic is delegated to controllers and services.
+ */
 import express from 'express';
 import cors from 'cors';
 import morgan from 'morgan';
@@ -25,4 +35,9 @@ app.use("/api/users", userRoutes);
 // Middleware de manejo de errores
 app.use(errorHandler);
 
+/**
+ * Express application instance configured with middleware and routes.
+ *
+ * Exported as default to be used by the HTTP server bootstrap in `server.ts`.
+ */
 export default app;

@@ -21,5 +21,17 @@ if (!admin.apps.length) {
   });
 }
 
+/**
+ * Firebase Admin Auth instance.
+ *
+ * Use `adminAuth` to manage users, verify tokens, and perform auth-related
+ * administrative actions.
+ */
 export const adminAuth = admin.auth();
+
+/**
+ * Firestore database instance.
+ *
+ * Use `adminDb` to read and write data to Firestore from server-side code.
+ */
 export const adminDb = admin.firestore();

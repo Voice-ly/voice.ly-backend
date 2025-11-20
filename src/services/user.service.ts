@@ -4,10 +4,10 @@ import { User } from "../models/user.model";
 import * as userRepo from "../repositories/user.repository";
 
 /**
- * Creates a new user using the repository layer.
+ * Create a new user and persist it.
  *
- * The password is hashed before storing the user data in the database.
- *
+ * @async
+ * @function createUserService
  * @param {User} data - The user data received from the controller.
  * @returns {Promise<string>} The ID of the newly created user in Firestore.
  */
@@ -19,9 +19,10 @@ export async function createUserService(data: User): Promise<string> {
 }
 
 /**
- * Encuentra un usuario por su ID (UID).
- * Este método se usará para que un usuario solo pueda ver su propio perfil.
+ * Find a user by id.
  *
+ * @async
+ * @function findUserByIdService
  * @param {string} id - ID del usuario (UID)
  * @returns {Promise<User | null>} El usuario encontrado o null si no existe
  */
@@ -30,10 +31,10 @@ export async function findUserByIdService(id: string): Promise<User | null> {
 }
 
 /**
- * Updates an existing user.
+ * Update an existing user.
  *
- * If the updated data contains a password, it is hashed before saving.
- *
+ * @async
+ * @function updateUserService
  * @param {string} id - The ID of the user to update.
  * @param {Partial<User>} data - The fields that should be updated.
  * @returns {Promise<void>}
@@ -50,20 +51,23 @@ export async function updateUserService(
 }
 
 /**
- * Deletes a user from the database.
+ * Delete a user.
  *
+ * @async
+ * @function deleteUserService
  * @param {string} id - The ID of the user to delete.
  * @returns {Promise<void>}
  */
 export async function deleteUserService(id: string): Promise<void> {
   await userRepo.deleteUserInDb(id);
 }
-
 /**
- * Finds a user by their email address.
+ * Find a user by email.
  *
+ * @async
+ * @function findUserByEmailService
  * @param {string} email - The email to search for.
- * @returns {Promise<object | null>} The found user or null if not found.
+ * @returns {Promise<User | null>} The found user or null if not found.
  */
 export async function findUserByEmailService(
   email: string
@@ -72,12 +76,28 @@ export async function findUserByEmailService(
 }
 
 
+
+/**
+ * Find a user by reset token.
+ *
+ * @async
+ * @function findUserByTokenService
+ * @param {string} token - Reset token to search.
+ * @returns {Promise<User | null>} The found user or null if not found.
+ */
 export async function findUserByTokenService(
   token: string
 ): Promise<User | null> {
   return await userRepo.findUserByResetToken(token);
 }
 
+/**
+ * Remove sensitive fields from a User object before sending to clients.
+ *
+ * @function sanitizeUser
+ * @param {User} user - Full user object
+ * @returns {Omit<User, 'password' | 'resetPasswordToken'>} Sanitized user object
+ */
 export function sanitizeUser(user: User) {
   const { password, resetPasswordToken, ...rest } = user;
   return rest;

@@ -1,3 +1,11 @@
+/**
+ * User management routes.
+ *
+ * - `GET /profile` returns the current user's profile (protected)
+ * - `PUT /profile` updates the current user's profile (protected)
+ * - `DELETE /profile` deletes the current user's account (protected)
+ * - `POST /` registers a new user (public)
+ */
 import { Router } from "express";
 import {
   createUser,

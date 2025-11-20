@@ -1,3 +1,10 @@
+/**
+ * Server bootstrap
+ *
+ * Loads environment variables and starts the HTTP server using the
+ * Express application configured in `app.ts`. The `PORT` environment
+ * variable controls the listening port (default 3000).
+ */
 import dotenv from 'dotenv';
 dotenv.config();
 

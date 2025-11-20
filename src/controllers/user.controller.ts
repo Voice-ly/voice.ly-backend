@@ -1,4 +1,10 @@
-import { Request, Response, NextFunction } from "express";
+/**
+ * User controller
+ *
+ * Exposes HTTP handlers for user management and authentication flows.
+ * Controllers are thin and delegate business rules to services.
+ */
+import { Request, Response } from "express";
 import bcrypt from "bcrypt";
 import * as jwt from "jsonwebtoken";
 import { User } from "../models/user.model";
@@ -21,17 +27,13 @@ interface UserWithId extends User {
 }
 
 /**
- * Creates a new user in the system.
+ * Create a new user.
  *
- * This controller handles the creation of a user by validating the request data,
- * checking if the email already exists, enforcing password rules, hashing the
- * password, and saving the user into the database.
- *
- * @param {Request} req - Express request object containing the user data in the body.
- * @param {Response} res - Express response object used to send the API response.
- * @returns {Promise<Response>} Returns a JSON response with the created user ID or an error message.
- *
- * @throws Will return a 500 status code if an unexpected error occurs.
+ * @async
+ * @function createUser
+ * @param {Request} req - Express request with user data in `req.body`.
+ * @param {Response} res - Express response used to return status and data.
+ * @returns {Promise<Response>} 201 with created user id or error response.
  */
 
 export const createUser = async (req: Request, res: Response) => {
@@ -79,16 +81,13 @@ export const createUser = async (req: Request, res: Response) => {
 
 
 /**
- * Retrieves all users from the system.
+ * Get the authenticated user's profile.
  *
- * This controller fetches all registered users by calling the user service layer.
- * It returns a JSON array with the users or an error message if something fails.
- *
- * @param {Request} req - Express request object.
- * @param {Response} res - Express response object used to send the response.
- * @returns {Promise<Response>} Returns a JSON response containing the list of users or an error message.
- *
- * @throws Will return a 500 status code if an unexpected error occurs.
+ * @async
+ * @function getUsers
+ * @param {Request} req - Express request; expects `req.user` populated by auth middleware.
+ * @param {Response} res - Express response used to return the sanitized user.
+ * @returns {Promise<Response>} 200 with user profile or error response.
  */
 export const getUsers = async (req: Request, res: Response) => {
   try {
@@ -107,18 +106,13 @@ export const getUsers = async (req: Request, res: Response) => {
 
 
 /**
- * Updates an existing user in the system.
+ * Update the authenticated user's profile.
  *
- * This controller receives the user ID through the request parameters and the
- * updated data in the request body. If a password update is included, the password
- * is hashed before being saved. The service layer is then called to perform
- * the update in the database.
- *
- * @param {Request} req - Express request object containing the user ID and updated data.
- * @param {Response} res - Express response object used to send the response.
- * @returns {Promise<Response>} Returns a JSON response confirming the update or an error message.
- *
- * @throws Will return a 500 status code if an unexpected error occurs.
+ * @async
+ * @function updateUser
+ * @param {Request} req - Express request; expects `req.user` and updated fields in `req.body`.
+ * @param {Response} res - Express response used to return status.
+ * @returns {Promise<Response>} 200 on success or error response.
  */
 export const updateUser = async (req: Request, res: Response) => {
   try {
@@ -165,16 +159,13 @@ export const updateUser = async (req: Request, res: Response) => {
 };
 
 /**
- * Deletes a user from the system.
+ * Delete the authenticated user's account.
  *
- * This controller receives a user ID from the request parameters and calls the
- * service layer to remove the corresponding user from the database.
- *
- * @param {Request} req - Express request object containing the user ID in the URL parameters.
- * @param {Response} res - Express response object used to send the response.
- * @returns {Promise<Response>} Returns a JSON response confirming deletion or an error message.
- *
- * @throws Will return a 500 status code if an unexpected error occurs.
+ * @async
+ * @function deleteUser
+ * @param {Request} req - Express request; expects `req.user`.
+ * @param {Response} res - Express response used to return status.
+ * @returns {Promise<Response>} 200 on success or error response.
  */
 
 export const deleteUser = async (req: Request, res: Response) => {
@@ -191,15 +182,13 @@ export const deleteUser = async (req: Request, res: Response) => {
 };
 
 /**
- * Controlador para iniciar sesión utilizando autenticación JWT.
- * 
- * Este endpoint valida las credenciales del usuario, verifica la contraseña 
- * utilizando bcrypt y genera un token JWT firmado con una clave secreta.
- * 
- * @param req - Objeto Request de Express, debe incluir `email` y `password` en el body.
- * @param res - Objeto Response de Express utilizado para enviar la respuesta al cliente.
- * 
- * @returns Devuelve un token JWT si las credenciales son válidas.
+ * Authenticate user and issue JWT cookie.
+ *
+ * @async
+ * @function loginUser
+ * @param {Request} req - Express request with `email` and `password` in body.
+ * @param {Response} res - Express response used to set cookie and return status.
+ * @returns {Promise<Response>} 200 on success or error response.
  */
 export const loginUser = async (req: Request, res: Response) => {
   try {
@@ -250,7 +239,11 @@ export const loginUser = async (req: Request, res: Response) => {
 };
 
 /**
- * 
+ * Logout handler - clears authentication cookie.
+ *
+ * @function logoutUser
+ * @param {Request} req - Express request.
+ * @param {Response} res - Express response used to clear cookie.
  */
 export const logoutUser = (req: Request, res: Response) => {
   try {
