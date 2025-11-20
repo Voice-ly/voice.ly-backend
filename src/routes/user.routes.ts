@@ -18,9 +18,23 @@ import { verifyToken } from "../middlewares/auth.middleware";
 
 const router = Router();
 
-// Rutas protegidas
+/**
+ * Ruta: GET /profile
+ * Descripción: Retorna el perfil del usuario autenticado.
+ * Acceso: Protegido
+ */
 router.get("/profile", verifyToken, getUsers);
+/**
+ * Ruta: PUT /profile
+ * Descripción: Actualiza los datos del usuario autenticado.
+ * Acceso: Protegido
+ */
 router.put("/profile", verifyToken, updateUser);
+/**
+ * Ruta: DELETE /profile
+ * Descripción: Elimina la cuenta del usuario autenticado.
+ * Acceso: Protegido
+ */
 router.delete("/profile", verifyToken, deleteUser);
 
 // Registro no requiere auth
