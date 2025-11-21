@@ -1,0 +1,174 @@
+import { adminDb } from "../config/firebaseAdmin";
+import { Meeting } from "../models/meeting.model";
+
+const meetingsCollection = adminDb.collection("meetings");
+
+export interface ServiceResponse<T = any> {
+  success: boolean;
+  status: number;
+  message: string;
+  data?: T;
+}
+
+/** Crear reunión */
+export const createMeetingService = async (
+  meeting: Meeting
+): Promise<ServiceResponse<{ id: string }>> => {
+  const docRef = await meetingsCollection.add(meeting);
+
+  return {
+    success: true,
+    status: 201,
+    message: "Reunión creada correctamente",
+    data: { id: docRef.id },
+  };
+};
+
+/** Obtener reunión por ID */
+export const getMeetingByIdService = async (
+  id: string
+): Promise<ServiceResponse<Meeting>> => {
+  const doc = await meetingsCollection.doc(id).get();
+
+  if (!doc.exists) {
+    return {
+      success: false,
+      status: 404,
+      message: "La reunión no existe",
+    };
+  }
+
+  return {
+    success: true,
+    status: 200,
+    message: "Reunión encontrada",
+    data: { id: doc.id, ...(doc.data() as Meeting) },
+  };
+};
+
+/** Listar reuniones */
+export const listMeetingsService = async (): Promise<
+  ServiceResponse<Meeting[]>
+> => {
+  const snap = await meetingsCollection.get();
+  const meetings = snap.docs.map((doc) => ({
+    id: doc.id,
+    ...(doc.data() as Meeting),
+  }));
+
+  return {
+    success: true,
+    status: 200,
+    message: "Lista de reuniones",
+    data: meetings,
+  };
+};
+
+/** Unirse a una reunión */
+export const joinMeetingService = async (
+  meetingId: string,
+  userId: string
+): Promise<ServiceResponse> => {
+  const doc = await meetingsCollection.doc(meetingId).get();
+
+  if (!doc.exists) {
+    return {
+      success: false,
+      status: 404,
+      message: "La reunión no existe",
+    };
+  }
+
+  const meeting = doc.data() as Meeting;
+
+  if (!meeting.participants.includes(userId)) {
+    meeting.participants.push(userId);
+
+    await meetingsCollection.doc(meetingId).update({
+      participants: meeting.participants,
+      updatedAt: Date.now(),
+    });
+  }
+
+  return {
+    success: true,
+    status: 200,
+    message: "Te uniste a la reunión",
+    data: {
+      meetLink: meeting.meetLink ?? "",
+      participants: meeting.participants,
+    },
+  };
+};
+
+/** Actualizar reunión */
+export const updateMeetingService = async (
+  meetingId: string,
+  userId: string,
+  data: Partial<Meeting>
+): Promise<ServiceResponse> => {
+  const doc = await meetingsCollection.doc(meetingId).get();
+
+  if (!doc.exists) {
+    return {
+      success: false,
+      status: 404,
+      message: "La reunión no existe",
+    };
+  }
+
+  const meeting = doc.data() as Meeting;
+
+  if (meeting.ownerId !== userId) {
+    return {
+      success: false,
+      status: 403,
+      message: "No tienes permiso para editar la reunión",
+    };
+  }
+
+  await meetingsCollection.doc(meetingId).update({
+    ...data,
+    updatedAt: Date.now(),
+  });
+
+  return {
+    success: true,
+    status: 200,
+    message: "Reunión actualizada",
+  };
+};
+
+/** Eliminar reunión */
+export const deleteMeetingService = async (
+  meetingId: string,
+  userId: string
+): Promise<ServiceResponse> => {
+  const doc = await meetingsCollection.doc(meetingId).get();
+
+  if (!doc.exists) {
+    return {
+      success: false,
+      status: 404,
+      message: "La reunión no existe",
+    };
+  }
+
+  const meeting = doc.data() as Meeting;
+
+  if (meeting.ownerId !== userId) {
+    return {
+      success: false,
+      status: 403,
+      message: "No tienes permiso para eliminar la reunión",
+    };
+  }
+
+  await meetingsCollection.doc(meetingId).delete();
+
+  return {
+    success: true,
+    status: 200,
+    message: "Reunión eliminada",
+  };
+};
