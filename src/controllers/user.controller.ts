@@ -396,14 +396,20 @@ export const socialAuthController = async (req: Request, res: Response) => {
     // Firebase Admin verifica el token independientemente del proveedor (Google, Facebook, GitHub, etc.)
     const decodedUser = await admin.auth().verifyIdToken(idToken);
     const email: any = decodedUser.email;
+
+    if (!email) {
+      return res.status(400).json({ message: "Email no proporcionado por el proveedor" });
+    }
+
     let user: any = (await findUserByEmailService(email)) as UserWithId | null;
 
     if (!user) {
-
       user = {
         firstName: decodedUser.name || "Sin Nombre",
-        email: email || "",
-        password: crypto.randomBytes(16).toString("hex"),
+        lastName: "",
+        age: null,
+        email,
+        password: null, // NO crear contraseña random
         createdAt: new Date(),
       };
 
@@ -431,14 +437,18 @@ export const socialAuthController = async (req: Request, res: Response) => {
       expiresIn: expiresEnv,
     });
 
-    // Guardamos el token en cookie HTTP-only
+    // MISMA LÓGICA QUE loginUser
+    const isProduction =
+      process.env.NODE_ENV === "production" ||
+      req.secure ||
+      req.headers["x-forwarded-proto"] === "https";
+
     res.cookie("token", token, {
       httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
+      secure: isProduction,                // HTTPS solo cuando debe
+      sameSite: isProduction ? "none" : "lax",
       maxAge: cookieMaxAge,
     });
-
 
     return res.json({ message: "Login exitoso" });
   } catch (err) {
