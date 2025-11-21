@@ -241,13 +241,14 @@ export const loginUser = async (req: Request, res: Response) => {
     });
 
     // Guardamos el token en cookie HTTP-only
+    const isProduction = process.env.NODE_ENV === "production" || req.secure || req.headers["x-forwarded-proto"] === "https";
+
     res.cookie("token", token, {
       httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
+      secure: isProduction,           // secure solo en HTTPS
+      sameSite: isProduction ? "none" : "lax", // none en producción, lax en local
       maxAge: cookieMaxAge,
     });
-
 
     return res.json({ message: "Login exitoso" });
   } catch (error: any) {
