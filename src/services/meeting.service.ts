@@ -14,8 +14,10 @@ export interface ServiceResponse<T = any> {
 export const createMeetingService = async (
   meeting: { title: string; description?: string },
   ownerId: string
-): Promise<ServiceResponse<{ id: string }>> => {
-  
+): Promise<ServiceResponse<{ id: string; meetLink: string }>> => {
+
+  const meetLink = `https://voicely-eight.vercel.app/dashboard/${crypto.randomUUID()}`;
+
   const newMeeting: Meeting = {
     title: meeting.title,
     description: meeting.description || "",
@@ -23,7 +25,7 @@ export const createMeetingService = async (
     ownerId,
     participants: [ownerId],
 
-    meetLink: `https://voicely-eight.vercel.app/dashboard/${crypto.randomUUID()}`,
+    meetLink,
     status: "scheduled",
 
     createdAt: Date.now(),
@@ -36,7 +38,10 @@ export const createMeetingService = async (
     success: true,
     status: 201,
     message: "Reunión creada correctamente",
-    data: { id: docRef.id },
+    data: {
+      id: docRef.id,
+      meetLink: meetLink
+    },
   };
 };
 
@@ -63,9 +68,7 @@ export const getMeetingByIdService = async (
 };
 
 /** Listar reuniones */
-export const listMeetingsService = async (): Promise<
-  ServiceResponse<Meeting[]>
-> => {
+export const listMeetingsService = async (): Promise<ServiceResponse<Meeting[]>> => {
   const snap = await meetingsCollection.get();
   const meetings = snap.docs.map((doc) => ({
     id: doc.id,
@@ -97,6 +100,7 @@ export const joinMeetingService = async (
 
   const meeting = doc.data() as Meeting;
 
+  // Agregar participante si no está
   if (!meeting.participants.includes(userId)) {
     meeting.participants.push(userId);
 
@@ -112,7 +116,7 @@ export const joinMeetingService = async (
     message: "Te uniste a la reunión",
     data: {
       id: doc.id,
-      meetLink: meeting.meetLink,
+      meetLink: meeting.meetLink, // <-- Se devuelve el link ya creado
       participants: meeting.participants,
     },
   };
