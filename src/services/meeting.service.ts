@@ -12,9 +12,25 @@ export interface ServiceResponse<T = any> {
 
 /** Crear reunión */
 export const createMeetingService = async (
-  meeting: Meeting
+  meeting: { title: string; description?: string },
+  ownerId: string
 ): Promise<ServiceResponse<{ id: string }>> => {
-  const docRef = await meetingsCollection.add(meeting);
+  
+  const newMeeting: Meeting = {
+    title: meeting.title,
+    description: meeting.description || "",
+    
+    ownerId,
+    participants: [ownerId],
+
+    meetLink: `https://voicely-eight.vercel.app/dashboard/${crypto.randomUUID()}`,
+    status: "scheduled",
+
+    createdAt: Date.now(),
+    updatedAt: Date.now(),
+  };
+
+  const docRef = await meetingsCollection.add(newMeeting);
 
   return {
     success: true,
@@ -95,7 +111,8 @@ export const joinMeetingService = async (
     status: 200,
     message: "Te uniste a la reunión",
     data: {
-      meetLink: meeting.meetLink ?? "",
+      id: doc.id,
+      meetLink: meeting.meetLink,
       participants: meeting.participants,
     },
   };

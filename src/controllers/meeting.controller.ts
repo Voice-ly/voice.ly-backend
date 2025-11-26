@@ -10,9 +10,29 @@ import {
 
 export const createMeetingController = async (req: Request, res: Response) => {
   try {
-    const meetingData = req.body;
-    const result = await createMeetingService(meetingData);
+    const userId = req.user?.id;
+
+    if (!userId) {
+      return res.status(401).json({
+        success: false,
+        status: 401,
+        message: "Usuario no autenticado",
+      });
+    }
+
+    const { title, description } = req.body;
+
+    if (!title) {
+      return res.status(400).json({
+        success: false,
+        status: 400,
+        message: "El título es obligatorio",
+      });
+    }
+
+    const result = await createMeetingService({ title, description }, userId);
     return res.status(result.status).json(result);
+
   } catch (error) {
     console.error("Error al crear reunión:", error);
     return res.status(500).json({
