@@ -247,6 +247,7 @@ export const loginUser = async (req: Request, res: Response) => {
       httpOnly: true,
       secure: isProduction,           // secure solo en HTTPS
       sameSite: isProduction ? "none" : "lax", // none en producción, lax en local
+      domain: ".voice-ly.onrender.com", // Ajusta el dominio según tu configuración
       maxAge: cookieMaxAge,
     });
 
@@ -269,6 +270,7 @@ export const logoutUser = (req: Request, res: Response) => {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
       sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
+      domain: ".voice-ly.onrender.com",
     });
 
     return res.json({ message: "Usuario deslogueado correctamente" });
@@ -432,10 +434,13 @@ export const socialAuthController = async (req: Request, res: Response) => {
     });
 
     // Guardamos el token en cookie HTTP-only
+    const isProduction = process.env.NODE_ENV === "production" || req.secure || req.headers["x-forwarded-proto"] === "https";
+
     res.cookie("token", token, {
       httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
+      secure: isProduction,           // secure solo en HTTPS
+      sameSite: isProduction ? "none" : "lax", // none en producción, lax en local
+      domain: ".voice-ly.onrender.com", // Ajusta el dominio según tu configuración
       maxAge: cookieMaxAge,
     });
 
