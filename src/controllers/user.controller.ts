@@ -7,9 +7,10 @@
 import admin from "firebase-admin";
 import { Request, Response } from "express";
 import bcrypt from "bcrypt";
-import * as jwt from "jsonwebtoken";
+import jwt, { Secret, SignOptions} from "jsonwebtoken";
 import { User } from "../models/user.model";
 import crypto from "crypto";
+import { isValidEmail, isValidPassword } from "../utils/validators";  
 
 import {
   createUserService,
@@ -17,7 +18,6 @@ import {
   deleteUserService,
   findUserByEmailService,
   findUserByTokenService,
-  findUserByIdService,
   sanitizeUser,
 } from "../services/user.service";
 import { sendPasswordResetEmail } from "../utils/email";
@@ -47,8 +47,7 @@ export const createUser = async (req: Request, res: Response) => {
     }
 
     // Validar contraseña segura
-    const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*[\W_]).{8,}$/;
-    if (!passwordRegex.test(password)) {
+    if (!isValidPassword(password)) {
       return res.status(400).json({
         message:
           "La contraseña debe tener al menos 8 caracteres, incluir letra mayúscula, minúscula y un caracter especial",
@@ -139,31 +138,25 @@ export const updateUser = async (req: Request, res: Response) => {
     }
 
     // Validaciones
-    if (updateData.email) {
-      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-      if (!emailRegex.test(updateData.email)) {
-        throw { status: 400, message: "Email inválido" };
-      }
+    if (updateData.email && !isValidEmail(updateData.email)) {
+      throw { status: 400, message: "Email inválido" };
     }
 
-    if (updateData.password) {
-      const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*[\W_]).{8,}$/;
-      if (!passwordRegex.test(updateData.password)) {
-        throw {
-          status: 400,
-          message:
-            "La contraseña debe tener 8 caracteres, mayúscula, minúscula y un caracter especial",
-        };
-      }
+    if (updateData.password && !isValidPassword(updateData.password)) {
+      throw {
+        status: 400,
+        message:
+          "La contraseña debe tener 8 caracteres, mayúscula, minúscula y un caracter especial",
+      };
     }
 
-    await updateUserService(user.id, updateData);
+        await updateUserService(user.id, updateData);
 
-    return res.json({ message: "Usuario actualizado" });
-  } catch (error: any) {
-    return res.status(500).json({ error: error.message });
-  }
-};
+        return res.json({ message: "Usuario actualizado" });
+      } catch (error: any) {
+        return res.status(500).json({ error: error.message });
+      }
+    };
 
 /**
  * Delete the authenticated user's account.
@@ -210,52 +203,32 @@ export const deleteUser = async (req: Request, res: Response) => {
 export const loginUser = async (req: Request, res: Response) => {
   try {
     const { email, password } = req.body;
-    if (!email || !password) return res.status(400).json({ message: "Email y contraseña requeridos" });
 
-    const user = (await findUserByEmailService(email)) as UserWithId | null;
+    const user = await findUserByEmailService(email);
     if (!user) return res.status(401).json({ message: "Usuario no encontrado" });
 
-    if (!user.password) return res.status(401).json({ message: "Credenciales inválidas" });
-    const match = await bcrypt.compare(password, user.password);
+    const match = await bcrypt.compare(password, user.password!);
     if (!match) return res.status(401).json({ message: "Contraseña incorrecta" });
 
-    const secret = process.env.JWT_SECRET;
-    if (!secret) return res.status(500).json({ message: "JWT_SECRET no está configurado" });
+    const secret: Secret = process.env.JWT_SECRET as string; // aseguramos string
+    const expiresIn: string | number = process.env.JWT_EXPIRES_IN || "2h";
 
-    // Determinar expiresIn para jwt y maxAge para cookie (ms)
-    const expiresEnv = process.env.JWT_EXPIRES_IN || "1h"; // puede ser '3600' (segundos), '1h', '30m', etc.
-    let cookieMaxAge = 60 * 60 * 1000; // default 1h en ms
+    const token = jwt.sign(
+      { uid: user.id, email: user.email }, // payload
+      secret,                              // secret explícitamente tipado
+      { expiresIn } as SignOptions         // opciones explicitadas
+    );
 
-    if (/^\d+$/.test(expiresEnv)) {
-      // valor en segundos
-      cookieMaxAge = Number(expiresEnv) * 1000;
-    } else if (/^\d+h$/i.test(expiresEnv)) {
-      cookieMaxAge = Number(expiresEnv.replace(/h/i, "")) * 60 * 60 * 1000;
-    } else if (/^\d+m$/i.test(expiresEnv)) {
-      cookieMaxAge = Number(expiresEnv.replace(/m/i, "")) * 60 * 1000;
-    }
-
-    // Crear token JWT (jsonwebtoken acepta string|number para expiresIn)
-    const token = (jwt as any).sign({ uid: user.id, email: user.email }, secret as any, {
-      expiresIn: expiresEnv,
+    return res.json({
+      message: "Login exitoso",
+      token,   // <-- Aquí el frontend lo guarda en memoria
     });
 
-    // Guardamos el token en cookie HTTP-only
-    const isProduction = process.env.NODE_ENV === "production" || req.secure || req.headers["x-forwarded-proto"] === "https";
-
-    res.cookie("token", token, {
-      httpOnly: true,
-      secure: isProduction,           // secure solo en HTTPS
-      sameSite: isProduction ? "none" : "lax", // none en producción, lax en local
-      domain: ".voice-ly.onrender.com", // Ajusta el dominio según tu configuración
-      maxAge: cookieMaxAge,
-    });
-
-    return res.json({ message: "Login exitoso" });
   } catch (error: any) {
     return res.status(500).json({ error: error.message });
   }
 };
+
 
 /**
  * Logout handler - clears authentication cookie.
@@ -263,7 +236,6 @@ export const loginUser = async (req: Request, res: Response) => {
  * @function logoutUser
  * @param {Request} req - Express request.
  * @param {Response} res - Express response used to clear cookie.
- */
 export const logoutUser = (req: Request, res: Response) => {
   try {
     res.clearCookie("token", {
@@ -371,14 +343,12 @@ export const resetPassword = async (req: Request, res: Response) => {
     }
 
     // Validar contraseña segura
-    const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*[\W_]).{8,}$/;
-    if (!passwordRegex.test(password)) {
+    if (!isValidPassword(password)) {
       return res.status(400).json({
         message:
           "La contraseña debe tener al menos 8 caracteres, incluir letra mayúscula, minúscula y un caracter especial",
       });
     }
-
 
     await updateUserService(user.id, {
       resetPasswordToken: '',
@@ -394,57 +364,31 @@ export const resetPassword = async (req: Request, res: Response) => {
 export const socialAuthController = async (req: Request, res: Response) => {
   try {
     const { idToken } = req.body;
-
-    // Firebase Admin verifica el token independientemente del proveedor (Google, Facebook, GitHub, etc.)
     const decodedUser = await admin.auth().verifyIdToken(idToken);
-    const email: any = decodedUser.email;
+    const email: string = decodedUser.email!;
 
-    let user: any = (await findUserByEmailService(email)) as UserWithId | null;
+    let user: any = await findUserByEmailService(email);
 
     if (!user) {
       user = {
         firstName: decodedUser.name || "Sin Nombre",
-        email: email || "",
+        email,
         password: crypto.randomBytes(16).toString("hex"),
         createdAt: new Date(),
       };
-
       await createUserService(user);
     }
 
+    const secret: Secret = process.env.JWT_SECRET as string; // aseguramos string
+    const expiresIn: string | number = process.env.JWT_EXPIRES_IN || "2h";
 
-    const secret = process.env.JWT_SECRET;
-    if (!secret) return res.status(500).json({ message: "JWT_SECRET no está configurado" });
+    const token = jwt.sign(
+      { uid: user.id, email: user.email }, // payload
+      secret,                              // secret explícitamente tipado
+      { expiresIn } as SignOptions         // opciones explicitadas
+    );
 
-    const expiresEnv = process.env.JWT_EXPIRES_IN || "1h"; // puede ser '3600' (segundos), '1h', '30m', etc.
-    let cookieMaxAge = 60 * 60 * 1000; // default 1h en ms
-
-    if (/^\d+$/.test(expiresEnv)) {
-      // valor en segundos
-      cookieMaxAge = Number(expiresEnv) * 1000;
-    } else if (/^\d+h$/i.test(expiresEnv)) {
-      cookieMaxAge = Number(expiresEnv.replace(/h/i, "")) * 60 * 60 * 1000;
-    } else if (/^\d+m$/i.test(expiresEnv)) {
-      cookieMaxAge = Number(expiresEnv.replace(/m/i, "")) * 60 * 1000;
-    }
-
-    // Crear token JWT (jsonwebtoken acepta string|number para expiresIn)
-    const token = (jwt as any).sign({ uid: user.id, email: user.email }, secret as any, {
-      expiresIn: expiresEnv,
-    });
-
-    // Guardamos el token en cookie HTTP-only
-    const isProduction = process.env.NODE_ENV === "production" || req.secure || req.headers["x-forwarded-proto"] === "https";
-
-    res.cookie("token", token, {
-      httpOnly: true,
-      secure: isProduction,           // secure solo en HTTPS
-      sameSite: isProduction ? "none" : "lax", // none en producción, lax en local
-      domain: ".voice-ly.onrender.com", // Ajusta el dominio según tu configuración
-      maxAge: cookieMaxAge,
-    });
-
-    return res.json({ message: "Login exitoso" });
+    return res.json({ message: "Login exitoso", token });
   } catch (err) {
     console.error(err);
     res.status(401).json({ message: "Token inválido" });
