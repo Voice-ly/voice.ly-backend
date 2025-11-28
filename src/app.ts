@@ -11,7 +11,6 @@
 import express from 'express';
 import cors from 'cors';
 import morgan from 'morgan';
-import cookieParser from 'cookie-parser';
 import userRoutes from './routes/user.routes';
 import authRoutes from './routes/auth.routes';
 import meetingRoutes from './routes/meeting.routes';
@@ -35,7 +34,6 @@ const allowedOrigins = (process.env.ALLOWED_ORIGINS || "http://localhost:3000,ht
 app.use(
   cors({
     origin: allowedOrigins,
-    credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization'],
   })
@@ -43,8 +41,6 @@ app.use(
 
 app.use(morgan('dev'));
 app.use(express.json());
-app.use(cookieParser());
-
 // Aquí irán tus rutas
 
 app.use("/api/auth", authRoutes);
