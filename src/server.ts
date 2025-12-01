@@ -12,6 +12,14 @@ import app from './app';
 
 const PORT = process.env.PORT || 3000;
 
-app.listen(PORT, () => {
-  console.log(`🚀 Server running on port ${PORT}`);
-});
+let server: any;
+
+// Solo iniciar el servidor si no estamos en test
+// Jest establece NODE_ENV = "test"
+if (process.env.NODE_ENV !== "test") {
+  server = app.listen(PORT, () => {
+    console.log(`🚀 Server running on port ${PORT}`);
+  });
+}
+
+export { app };
