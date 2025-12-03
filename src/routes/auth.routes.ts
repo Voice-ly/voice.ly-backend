@@ -15,4 +15,8 @@ router.post("/forgot-password", forgotPassword);
 router.post("/reset-password", resetPassword);
 router.post("/socialAuth", socialAuthController);
 
+router.get("/prueba", (req, res) => {
+  res.send("Ruta de autenticación funcionando");
+})
+
 export default router;
