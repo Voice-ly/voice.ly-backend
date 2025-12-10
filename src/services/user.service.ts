@@ -76,7 +76,6 @@ export async function findUserByEmailService(
 }
 
 
-
 /**
  * Find a user by reset token.
  *
@@ -101,4 +100,41 @@ export async function findUserByTokenService(
 export function sanitizeUser(user: User) {
   const { password, resetPasswordToken, ...rest } = user;
   return rest;
+}
+
+// /meeting-service/src/services/user.service.ts (AÑADIDO)
+
+/**
+ * Get the list of email addresses for a given array of User IDs.
+ * @async
+ * @function getUsersEmailsByIdsService
+ * @param {string[]} userIds - Array of User IDs.
+ * @returns {Promise<string[]>} Array of valid email addresses.
+ */
+export async function getUsersEmailsByIdsService(userIds: string[]): Promise<string[]> {
+    
+    // LOG 1: ¿Qué IDs recibimos del Meeting Service? ⭐️
+    console.log("[DEBUG USER SERVICE] IDs recibidos:", userIds); 
+    
+    if (userIds.length === 0) {
+        // Esto NO debería ocurrir si el Meeting Service envió la petición, pero es seguro.
+        return [];
+    }
+
+    // Obtener los usuarios del repositorio (Usando la función que añadimos)
+    const users = await userRepo.findUsersByIdsInDb(userIds);
+    
+    // LOG 2: ¿Qué usuarios se encontraron en Firestore? ⭐️
+    console.log("[DEBUG USER SERVICE] Usuarios encontrados (objetos):", users.map(u => ({ id: u.id, email: u.email })));
+
+    // Extraer y filtrar solo los correos válidos
+    // Tu user.model.ts define 'email: string', lo cual es correcto.
+    const emails = users
+        .map(user => user.email) 
+        .filter(email => email && email.includes('@')); 
+
+    //LOG 3: ¿Qué correos válidos estamos devolviendo? ⭐️
+    console.log("[DEBUG USER SERVICE] Correos válidos devueltos:", emails);
+
+    return emails;
 }

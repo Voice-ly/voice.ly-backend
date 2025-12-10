@@ -193,3 +193,54 @@ export const deleteMeetingService = async (
     message: "Reunión eliminada",
   };
 };
+
+/** Finalizar una reunión */
+export const endMeetingService = async (
+  meetingId: string,
+  userId: string // Asumimos que solo el dueño (o un admin) puede finalizarla
+): Promise<ServiceResponse> => {
+  const doc = await meetingsCollection.doc(meetingId).get();
+
+  if (!doc.exists) {
+    return {
+      success: false,
+      status: 404,
+      message: "La reunión no existe",
+    };
+  }
+
+  const meeting = doc.data() as Meeting;
+
+  // Validación de seguridad: Solo el dueño puede finalizar la reunión
+  if (meeting.ownerId !== userId) {
+    return {
+      success: false,
+      status: 403,
+      message: "No tienes permiso para finalizar la reunión",
+    };
+  }
+
+  // Validación de estado: Si ya está terminada, no hacer nada
+  if (meeting.status === "finished") {
+    return {
+      success: true,
+      status: 200,
+      message: "La reunión ya estaba finalizada",
+    };
+  }
+
+  // Actualizar estado y fecha de finalización
+  await meetingsCollection.doc(meetingId).update({
+    status: "ended",
+    updatedAt: Date.now(),
+    endedAt: Date.now(), // ⬅️ Opcional, pero útil para registrar el tiempo de fin
+  });
+
+  // Para obtener los participantes en el controlador, usamos getMeetingByIdService,
+  // pero para este servicio, solo devolvemos el éxito.
+  return {
+    success: true,
+    status: 200,
+    message: "Reunión finalizada con éxito",
+  };
+};

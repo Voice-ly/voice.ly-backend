@@ -5,6 +5,7 @@
  * The functions return domain `User` objects or `null` when no document is
  * found. Keep data access patterns here; higher-level logic belongs in services.
  */
+import * as admin from "firebase-admin";
 import { adminDb } from "../config/firebaseAdmin";
 import { User } from "../models/user.model";
 
@@ -114,4 +115,30 @@ export async function findUserByResetToken(token: string): Promise<User | null> 
   if (query.empty) return null;
 
   return { id: query.docs[0].id, ...(query.docs[0].data() as User) };
+}
+
+/**
+ * Finds multiple users in Firestore by a list of IDs.
+ *
+ * @async
+ * @function findUsersByIdsInDb
+ * @param {string[]} ids - Array of Firestore document ids (User IDs).
+ * @returns {Promise<User[]>} Array of User objects found.
+ */
+export async function findUsersByIdsInDb(ids: string[]): Promise<User[]> {
+  if (ids.length === 0) {
+    return [];
+  }
+  
+  //Acceder a FieldPath a través de admin.firestore
+  const snapshot = await usersCollection
+    .where(admin.firestore.FieldPath.documentId(), 'in', ids)
+    .get();
+
+  const users = snapshot.docs.map(doc => ({ 
+    id: doc.id, 
+    ...(doc.data() as User) 
+  }));
+
+  return users;
 }
