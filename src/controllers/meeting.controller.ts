@@ -1,5 +1,6 @@
 import { Request, Response } from "express";
 import { getUsersEmailsByIdsService } from "../services/user.service";
+import { getHistoryByRoomId } from "../services/chatHistory.service";
 import {
   createMeetingService,
   getMeetingByIdService,
@@ -160,89 +161,86 @@ export const deleteMeetingController = async (req: Request, res: Response) => {
 };
 
 export const endMeetingController = async (req: Request, res: Response) => {
-    const meetingId = req.params.id;
-    const userId = req.user?.uid; 
+    const meetingId = req.params.id;
+    const userId = req.user?.uid; 
 
-    if (!userId) {
-        return res.status(401).json({
-            success: false,
-            status: 401,
-            message: "Usuario no autenticado",
-        });
-    }
+    if (!userId) {
+        return res.status(401).json({
+            success: false,
+            status: 401,
+            message: "Usuario no autenticado",
+        });
+    }
 
-    try {
-        // Marcar la reunión como finalizada en la DB
-        const endDbResult = await endMeetingService(meetingId, userId);
-        if (!endDbResult.success) {
-            return res.status(endDbResult.status).json(endDbResult);
-        }
-        
-        // Responder INMEDIATAMENTE al cliente. El resto es proceso de fondo.
-        res.status(200).json({
-            success: true,
-            status: 200,
-            message: "Reunión finalizada. El resumen se está generando y se enviará por correo.",
-        });
-        
-        const generateSummaryInBackground = async () => {
-            let participantEmails: string[] = []; // Inicializamos la lista de correos
-            
-            try {
-                // Obtener IDs de participantes de la reunión finalizada
-                const meetingResponse = await getMeetingByIdService(meetingId);
-                const participantIds: string[] = meetingResponse.data?.participants || [];
+    try {
+        // Marcar la reunión como finalizada en la DB
+        const endDbResult = await endMeetingService(meetingId, userId);
+        if (!endDbResult.success) {
+            return res.status(endDbResult.status).json(endDbResult);
+        }
+        
+        // Responder INMEDIATAMENTE al cliente. El resto es proceso de fondo.
+        res.status(200).json({
+            success: true,
+            status: 200,
+            message: "Reunión finalizada. El resumen se está generando y se enviará por correo.",
+        });
+        
+        const generateSummaryInBackground = async () => {
+            let participantEmails: string[] = [];
+            
+            try {
+                // Obtener IDs de participantes de la reunión finalizada
+                const meetingResponse = await getMeetingByIdService(meetingId);
+                const participantIds: string[] = meetingResponse.data?.participants || [];
+                
+                console.log(`[DEBUG ORQUESTACIÓN] IDs de participantes obtenidos:`, participantIds); 
+                
+                // CONVERTIR IDs a correos
+                participantEmails = await getUsersEmailsByIdsService(participantIds);
+                
+                console.log(`[DEBUG ORQUESTACIÓN] Correos válidos para envío:`, participantEmails); 
+
+                // ZONA CORREGIDA: Reemplazamos el fetch fallido por la llamada directa al servicio local
+                const chatHistory = await getHistoryByRoomId(meetingId); // ⬅️ ¡Llamada directa a Firestore!
+                console.log(`[DEBUG ORQUESTACIÓN] Historial de chat obtenido localmente. Longitud: ${chatHistory.length}`);
                 
-                console.log(`[DEBUG ORQUESTACIÓN] IDs de participantes obtenidos:`, participantIds); 
-                
-                // CONVERTIR IDs a correos (Usando el servicio corregido)
-                participantEmails = await getUsersEmailsByIdsService(participantIds);
-                
-                console.log(`[DEBUG ORQUESTACIÓN] Correos válidos para envío:`, participantEmails); 
+                // LLAMAR AL SERVICIO DE IA
+                const aiResponse = await fetch(`${AI_SERVICE_URL}/process-meeting`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        meetingId,
+                        // Enviamos array de objetos { email: '...' } al AI Service
+                        participants: participantEmails.map(email => ({ email })), 
+                        chatHistory,
+                    }),
+                });
 
-                // Obtener historial del CHAT (Llamada al Microservicio de Chat con fetch)
-                const chatResponse = await fetch(`${CHAT_SERVICE_URL}/history/${meetingId}`);
-                if (!chatResponse.ok) throw new Error(`Chat Service error: ${chatResponse.status}`);
-                
-                const chatData = await chatResponse.json();
-                const chatHistory = chatData.chatHistory || [];
+                if (!aiResponse.ok) {
+                    const errorDetails = await aiResponse.text();
+                    console.error(`Error de AI Service (${aiResponse.status}):`, errorDetails);
+                } else {
+                    console.log(`[AI-Service] Petición enviada exitosamente a AI Service para ${meetingId}`);
+                }
 
-                // LLAMAR AL SERVICIO DE IA
-                const aiResponse = await fetch(`${AI_SERVICE_URL}/process-meeting`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        meetingId,
-                        // Enviamos array de objetos { email: '...' } al AI Service
-                        participants: participantEmails.map(email => ({ email })), 
-                        chatHistory,
-                    }),
-                });
+            } catch (err: any) {
+                // Este log registrará cualquier fallo durante el proceso de fondo (red, chat service, gemini, etc.)
+                console.error(`[ERROR ORQUESTACIÓN FONDO] Fallo al generar resumen para ${meetingId}:`, err.message);
+            }
+        };
 
-                if (!aiResponse.ok) {
-                    const errorDetails = await aiResponse.text();
-                    console.error(`Error de AI Service (${aiResponse.status}):`, errorDetails);
-                } else {
-                    console.log(`[AI-Service] Petición enviada exitosamente a AI Service para ${meetingId}`);
-                }
+        // Ejecutamos la promesa sin 'await' para que se ejecute en segundo plano
+        generateSummaryInBackground(); 
 
-            } catch (err: any) {
-                // Este log registrará cualquier fallo durante el proceso de fondo (red, chat service, gemini, etc.)
-                console.error(`[ERROR ORQUESTACIÓN FONDO] Fallo al generar resumen para ${meetingId}:`, err.message);
-            }
-        };
-
-        // Ejecutamos la promesa sin 'await' para que se ejecute en segundo plano
-        generateSummaryInBackground(); 
-
-    } catch (error: any) {
-        // Este catch maneja los errores antes de la respuesta inicial (e.g., error en endMeetingService)
-        console.error(`Error al finalizar reunión ${meetingId} antes de background:`, error.message);
-        return res.status(500).json({
-            success: false,
-            status: 500,
-            message: "Error del servidor al finalizar la reunión.",
-            detail: error.message
-        });
-    }
+    } catch (error: any) {
+        // Este catch maneja los errores antes de la respuesta inicial (e.g., error en endMeetingService)
+        console.error(`Error al finalizar reunión ${meetingId} antes de background:`, error.message);
+        return res.status(500).json({
+            success: false,
+            status: 500,
+            message: "Error del servidor al finalizar la reunión.",
+            detail: error.message
+        });
+    }
 };
