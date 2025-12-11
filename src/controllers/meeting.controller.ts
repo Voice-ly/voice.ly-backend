@@ -201,7 +201,7 @@ export const endMeetingController = async (req: Request, res: Response) => {
                 console.log(`[DEBUG ORQUESTACIÓN] Correos válidos para envío:`, participantEmails); 
 
                 // Obtener historial del CHAT (Llamada al Microservicio de Chat con fetch)
-                const chatResponse = await fetch(`${CHAT_SERVICE_URL}/api/history/${meetingId}`);
+                const chatResponse = await fetch(`${CHAT_SERVICE_URL}/history/${meetingId}`);
                 if (!chatResponse.ok) throw new Error(`Chat Service error: ${chatResponse.status}`);
                 
                 const chatData = await chatResponse.json();
